@@ -11,7 +11,7 @@ obj/
 .vs/
 .vscode/
 .idea/
-.claude/settings.local.json
+.claude/
 *.suo
 *.user
 *.userosscache
@@ -20,12 +20,17 @@ obj/
 
 # Build and release artifacts
 build/
+artifacts/
 Windows/publish/
 Windows/dist/
 Windows/Installer/Output/
+SelectionSmoke/
 *.msi
 *.exe
 *.zip
+*.nupkg
+*.snupkg
+*.binlog
 
 # Local secrets and environment overrides
 .env
