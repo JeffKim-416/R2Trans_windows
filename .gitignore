@@ -12,11 +12,17 @@ obj/
 .vscode/
 .idea/
 .claude/settings.local.json
+*.suo
+*.user
+*.userosscache
+*.rsuser
+*.DotSettings.user
 
 # Build and release artifacts
 build/
 Windows/publish/
 Windows/dist/
+Windows/Installer/Output/
 *.msi
 *.exe
 *.zip
@@ -35,3 +41,7 @@ Windows/dist/
 *.log
 *.tmp
 *.swp
+TestResults/
+coverage/
+*.coverage
+*.coveragexml

@@ -129,7 +129,6 @@ public sealed class AppController : IDisposable
 
         progressWindow.SetMessage(message);
         progressWindow.Show();
-        progressWindow.Activate();
     }
 
     private void HideProgressWindow()

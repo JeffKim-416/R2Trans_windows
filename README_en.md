@@ -2,11 +2,11 @@
 
 R2Trans is a Windows-only app that translates selected text with a global hotkey and replaces it in place.
 
-[한국어 README](README.md)
+[Korean README](README.md)
 
 ## Installer
 
-Run the setup file below to install R2Trans.
+Download the latest setup file from [GitHub Releases](https://github.com/JeffKim-416/R2Trans_windows/releases/latest).
 
 ```text
 R2TransSetup-0.1.0-win-x64.exe

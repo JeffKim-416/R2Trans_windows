@@ -39,8 +39,9 @@ public sealed class ClipboardTranslator
 
         try
         {
-            statusChanged?.Invoke(AppText.Text(TextKey.Translating));
             var selectedText = await CopySelectionAsync(targetWindow);
+
+            statusChanged?.Invoke(AppText.Text(TextKey.Translating));
             var translatedText = await translator.TranslateAsync(selectedText);
             statusChanged?.Invoke(string.Empty);
 
@@ -86,7 +87,7 @@ public sealed class ClipboardTranslator
 
     private static async Task<string> WaitForCopiedTextAsync(uint originalSequence, string ignoredText)
     {
-        for (var attempt = 0; attempt < 40; attempt++)
+        for (var attempt = 0; attempt < 80; attempt++)
         {
             await Task.Delay(50);
 
@@ -108,11 +109,7 @@ public sealed class ClipboardTranslator
 
     private static async Task<string> CopySelectionAsync(IntPtr targetWindow)
     {
-        if (targetWindow != IntPtr.Zero)
-        {
-            NativeMethods.SetForegroundWindow(targetWindow);
-            await Task.Delay(180);
-        }
+        await FocusTargetWindowAsync(targetWindow);
 
         var marker = $"__R2TRANS_COPY_MARKER_{Guid.NewGuid():N}__";
         if (!TrySetClipboardText(marker))
@@ -133,6 +130,28 @@ public sealed class ClipboardTranslator
             NativeMethods.SendShortcut(NativeMethods.VkControl, (ushort)Keys.Insert);
             return await WaitForCopiedTextAsync(sequenceBeforeFallback, marker);
         }
+    }
+
+    private static async Task FocusTargetWindowAsync(IntPtr targetWindow)
+    {
+        if (targetWindow == IntPtr.Zero)
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            NativeMethods.SetForegroundWindow(targetWindow);
+            await Task.Delay(80);
+
+            if (NativeMethods.GetForegroundWindow() == targetWindow)
+            {
+                await Task.Delay(120);
+                return;
+            }
+        }
+
+        await Task.Delay(200);
     }
 
     private static async Task PasteAsync(string translatedText, IntPtr targetWindow)

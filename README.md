@@ -6,7 +6,7 @@ R2Trans는 선택한 텍스트를 단축키로 번역하고 원래 위치에 다
 
 ## 설치 파일
 
-설치하려면 아래 setup 파일을 실행하세요.
+최신 설치파일은 [GitHub Releases](https://github.com/JeffKim-416/R2Trans_windows/releases/latest)에서 받을 수 있습니다.
 
 ```text
 R2TransSetup-0.1.0-win-x64.exe

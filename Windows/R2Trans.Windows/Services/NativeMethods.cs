@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace R2Trans.Windows.Services;
@@ -16,7 +17,10 @@ internal static class NativeMethods
     internal const ushort VkLWin = 0x5B;
     internal const ushort VkRWin = 0x5C;
     internal const uint InputKeyboard = 1;
+    internal const uint KeyEventFExtendedKey = 0x0001;
     internal const uint KeyEventFKeyUp = 0x0002;
+    internal const uint KeyEventFScanCode = 0x0008;
+    private const uint MapvkVkToVsc = 0;
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -47,6 +51,9 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
     internal static void SendShortcut(params ushort[] virtualKeys)
     {
         var inputs = new List<INPUT>();
@@ -63,12 +70,28 @@ internal static class NativeMethods
 
         if (inputs.Count > 0)
         {
-            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+            var sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+            if (sent != inputs.Count)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
         }
     }
 
     private static INPUT CreateKeyboardInput(ushort virtualKey, bool keyUp)
     {
+        var scanCode = (ushort)MapVirtualKey(virtualKey, MapvkVkToVsc);
+        var flags = KeyEventFScanCode;
+        if (keyUp)
+        {
+            flags |= KeyEventFKeyUp;
+        }
+
+        if (IsExtendedKey(virtualKey))
+        {
+            flags |= KeyEventFExtendedKey;
+        }
+
         return new INPUT
         {
             type = InputKeyboard,
@@ -76,14 +99,30 @@ internal static class NativeMethods
             {
                 ki = new KEYBDINPUT
                 {
-                    wVk = virtualKey,
-                    wScan = 0,
-                    dwFlags = keyUp ? KeyEventFKeyUp : 0,
+                    wVk = 0,
+                    wScan = scanCode,
+                    dwFlags = flags,
                     time = 0,
                     dwExtraInfo = UIntPtr.Zero
                 }
             }
         };
+    }
+
+    private static bool IsExtendedKey(ushort virtualKey)
+    {
+        return virtualKey is 0x21 // Page Up
+            or 0x22 // Page Down
+            or 0x23 // End
+            or 0x24 // Home
+            or 0x25 // Left
+            or 0x26 // Up
+            or 0x27 // Right
+            or 0x28 // Down
+            or 0x2D // Insert
+            or 0x2E // Delete
+            or 0x6F // Divide
+            or VkRWin;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -97,7 +136,24 @@ internal static class NativeMethods
     private struct InputUnion
     {
         [FieldOffset(0)]
+        public MOUSEINPUT mi;
+
+        [FieldOffset(0)]
         public KEYBDINPUT ki;
+
+        [FieldOffset(0)]
+        public HARDWAREINPUT hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -108,5 +164,13 @@ internal static class NativeMethods
         public uint dwFlags;
         public uint time;
         public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HARDWAREINPUT
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
     }
 }
