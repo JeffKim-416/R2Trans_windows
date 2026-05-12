@@ -1,5 +1,6 @@
 #define AppName "R2Trans"
-#define AppVersion "0.1.0"
+#define AppVersion GetEnv("R2TRANS_APP_VERSION")
+#define Runtime GetEnv("R2TRANS_RUNTIME")
 #define Publisher "R2Trans"
 #define PublishDir GetEnv("R2TRANS_PUBLISH_DIR")
 
@@ -12,12 +13,12 @@ DefaultDirName={autopf}\R2Trans
 DefaultGroupName=R2Trans
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=R2TransSetup
+OutputBaseFilename=R2TransSetup-{#AppVersion}-{#Runtime}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayIcon={app}\R2Trans.exe
 

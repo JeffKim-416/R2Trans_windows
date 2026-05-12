@@ -2,6 +2,7 @@ using System.Windows;
 using R2Trans.Windows.Localization;
 using R2Trans.Windows.Models;
 using R2Trans.Windows.Services;
+using MessageBox = System.Windows.MessageBox;
 
 namespace R2Trans.Windows;
 

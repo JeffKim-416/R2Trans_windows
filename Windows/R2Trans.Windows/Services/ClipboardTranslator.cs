@@ -1,6 +1,8 @@
 using System.Windows;
 using R2Trans.Windows.Localization;
 using R2Trans.Windows.Models;
+using Clipboard = System.Windows.Clipboard;
+using ClipboardDataObject = System.Windows.IDataObject;
 using Keys = System.Windows.Forms.Keys;
 
 namespace R2Trans.Windows.Services;
@@ -33,15 +35,14 @@ public sealed class ClipboardTranslator
 
         isTranslating = true;
         var targetWindow = NativeMethods.GetForegroundWindow();
-        var snapshot = Clipboard.GetDataObject();
-        var originalSequence = NativeMethods.GetClipboardSequenceNumber();
+        var snapshot = TryGetClipboardDataObject();
 
         try
         {
             statusChanged?.Invoke(AppText.Text(TextKey.Translating));
-            NativeMethods.SendShortcut(NativeMethods.VkControl, (ushort)Keys.C);
-            var selectedText = await WaitForCopiedTextAsync(originalSequence);
+            var selectedText = await CopySelectionAsync(targetWindow);
             var translatedText = await translator.TranslateAsync(selectedText);
+            statusChanged?.Invoke(string.Empty);
 
             if (settingsStore.Current.ConfirmBeforeReplace)
             {
@@ -59,7 +60,7 @@ public sealed class ClipboardTranslator
                         RestoreClipboard(snapshot);
                         return TranslationOutcome.Replaced;
                     case TranslationConfirmationAction.Copy:
-                        Clipboard.SetText(translatedText);
+                        SetClipboardText(translatedText);
                         return TranslationOutcome.Copied;
                     default:
                         RestoreClipboard(snapshot);
@@ -83,23 +84,21 @@ public sealed class ClipboardTranslator
         }
     }
 
-    private static async Task<string> WaitForCopiedTextAsync(uint originalSequence)
+    private static async Task<string> WaitForCopiedTextAsync(uint originalSequence, string ignoredText)
     {
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 40; attempt++)
         {
             await Task.Delay(50);
 
-            if (NativeMethods.GetClipboardSequenceNumber() == originalSequence)
+            if (NativeMethods.GetClipboardSequenceNumber() != originalSequence
+                && TryGetClipboardText(out var text))
             {
-                continue;
-            }
-
-            if (Clipboard.ContainsText())
-            {
-                var text = Clipboard.GetText();
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    return text;
+                    if (!string.Equals(text, ignoredText, StringComparison.Ordinal))
+                    {
+                        return text;
+                    }
                 }
             }
         }
@@ -107,9 +106,38 @@ public sealed class ClipboardTranslator
         throw new R2TransException(AppText.Text(TextKey.ClipboardTextMissing));
     }
 
+    private static async Task<string> CopySelectionAsync(IntPtr targetWindow)
+    {
+        if (targetWindow != IntPtr.Zero)
+        {
+            NativeMethods.SetForegroundWindow(targetWindow);
+            await Task.Delay(180);
+        }
+
+        var marker = $"__R2TRANS_COPY_MARKER_{Guid.NewGuid():N}__";
+        if (!TrySetClipboardText(marker))
+        {
+            TryClearClipboard();
+        }
+
+        var sequenceBeforeCopy = NativeMethods.GetClipboardSequenceNumber();
+
+        NativeMethods.SendShortcut(NativeMethods.VkControl, (ushort)Keys.C);
+        try
+        {
+            return await WaitForCopiedTextAsync(sequenceBeforeCopy, marker);
+        }
+        catch (R2TransException)
+        {
+            var sequenceBeforeFallback = NativeMethods.GetClipboardSequenceNumber();
+            NativeMethods.SendShortcut(NativeMethods.VkControl, (ushort)Keys.Insert);
+            return await WaitForCopiedTextAsync(sequenceBeforeFallback, marker);
+        }
+    }
+
     private static async Task PasteAsync(string translatedText, IntPtr targetWindow)
     {
-        Clipboard.SetText(translatedText);
+        SetClipboardText(translatedText);
 
         if (targetWindow != IntPtr.Zero)
         {
@@ -121,7 +149,7 @@ public sealed class ClipboardTranslator
         await Task.Delay(450);
     }
 
-    private static void RestoreClipboard(IDataObject? snapshot)
+    private static void RestoreClipboard(ClipboardDataObject? snapshot)
     {
         if (snapshot is null)
         {
@@ -136,5 +164,81 @@ public sealed class ClipboardTranslator
         {
             // Clipboard ownership is best-effort on Windows; translation should not fail after paste.
         }
+    }
+
+    private static ClipboardDataObject? TryGetClipboardDataObject()
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                return Clipboard.GetDataObject();
+            }
+            catch
+            {
+                Thread.Sleep(30);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryGetClipboardText(out string text)
+    {
+        text = string.Empty;
+        try
+        {
+            if (!Clipboard.ContainsText())
+            {
+                return false;
+            }
+
+            text = Clipboard.GetText();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void TryClearClipboard()
+    {
+        try
+        {
+            Clipboard.Clear();
+        }
+        catch
+        {
+            // The clipboard can be temporarily locked by other apps; copy may still replace it.
+        }
+    }
+
+    private static void SetClipboardText(string text)
+    {
+        if (TrySetClipboardText(text))
+        {
+            return;
+        }
+
+        Clipboard.SetText(text);
+    }
+
+    private static bool TrySetClipboardText(string text)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                return true;
+            }
+            catch
+            {
+                Thread.Sleep(30);
+            }
+        }
+
+        return false;
     }
 }

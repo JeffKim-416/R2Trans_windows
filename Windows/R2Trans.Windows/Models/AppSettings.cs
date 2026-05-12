@@ -16,7 +16,7 @@ public sealed class AppSettings
 
     public string LanguagePairDisplayName => AutoDetectEnabled
         ? $"Auto {AutoDetectPair.DisplayName()}"
-        : $"{SupportedLanguage.DisplayName(SourceLanguageCode)}->{SupportedLanguage.DisplayName(TargetLanguageCode)}";
+        : $"{SupportedLanguage.DisplayNameFor(SourceLanguageCode)}->{SupportedLanguage.DisplayNameFor(TargetLanguageCode)}";
 }
 
 public sealed record SupportedLanguage(string Code, string Name)
@@ -24,7 +24,7 @@ public sealed record SupportedLanguage(string Code, string Name)
     public const string DefaultSourceCode = "ko-KR";
     public const string DefaultTargetCode = "en-US";
 
-    public string DisplayName => Code;
+    public string DisplayName => Name;
 
     public static IReadOnlyList<SupportedLanguage> All { get; } =
     [
@@ -35,7 +35,7 @@ public sealed record SupportedLanguage(string Code, string Name)
         new("zh-CN", "Chinese")
     ];
 
-    public static string DisplayName(string code) => LanguageFor(code).DisplayName;
+    public static string DisplayNameFor(string code) => LanguageFor(code).Name;
 
     public static string EnglishName(string code) => LanguageFor(code).Name;
 

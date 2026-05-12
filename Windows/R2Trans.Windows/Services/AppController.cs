@@ -10,6 +10,7 @@ public sealed class AppController : IDisposable
     private readonly GlobalHotKeyService hotKeyService = new();
     private MainWindow? mainWindow;
     private LiveInterpreterWindow? liveInterpreterWindow;
+    private TranslationProgressWindow? progressWindow;
     private bool disposed;
 
     public AppController()
@@ -67,6 +68,23 @@ public sealed class AppController : IDisposable
         }
     }
 
+    public void SuspendHotKey()
+    {
+        hotKeyService.Unregister();
+    }
+
+    public void ResumeHotKey()
+    {
+        try
+        {
+            RegisterHotKey();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message);
+        }
+    }
+
     private void RegisterHotKey()
     {
         if (mainWindow is null)
@@ -78,13 +96,51 @@ public sealed class AppController : IDisposable
         {
             try
             {
-                await ClipboardTranslator.TranslateSelectionAsync(mainWindow, mainWindow.SetStatus);
+                await ClipboardTranslator.TranslateSelectionAsync(mainWindow, UpdateTranslationStatus);
             }
             catch (Exception exception)
             {
+                HideProgressWindow();
                 ShowError(exception.Message);
             }
         });
+    }
+
+    private void UpdateTranslationStatus(string status)
+    {
+        mainWindow?.SetStatus(status);
+
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            HideProgressWindow();
+            return;
+        }
+
+        ShowProgressWindow(status);
+    }
+
+    private void ShowProgressWindow(string message)
+    {
+        if (progressWindow is null)
+        {
+            progressWindow = new TranslationProgressWindow();
+            progressWindow.Closed += (_, _) => progressWindow = null;
+        }
+
+        progressWindow.SetMessage(message);
+        progressWindow.Show();
+        progressWindow.Activate();
+    }
+
+    private void HideProgressWindow()
+    {
+        if (progressWindow is null)
+        {
+            return;
+        }
+
+        progressWindow.Close();
+        progressWindow = null;
     }
 
     private void ConfigureTray()
@@ -143,6 +199,7 @@ public sealed class AppController : IDisposable
 
         disposed = true;
         hotKeyService.Dispose();
+        HideProgressWindow();
         notifyIcon.Visible = false;
         notifyIcon.Dispose();
     }

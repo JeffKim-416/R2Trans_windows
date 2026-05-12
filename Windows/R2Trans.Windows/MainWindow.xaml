@@ -151,7 +151,12 @@
             <TextBox x:Name="HotKeyTextBox"
                      Grid.Row="9"
                      Grid.Column="1"
-                     Margin="0,14,0,0" />
+                     Margin="0,14,0,0"
+                     IsReadOnly="True"
+                     GotKeyboardFocus="HotKeyTextBox_GotKeyboardFocus"
+                     LostKeyboardFocus="HotKeyTextBox_LostKeyboardFocus"
+                     PreviewKeyDown="HotKeyTextBox_PreviewKeyDown"
+                     PreviewTextInput="HotKeyTextBox_PreviewTextInput" />
 
             <TextBlock x:Name="ModelLabel"
                        Grid.Row="10"

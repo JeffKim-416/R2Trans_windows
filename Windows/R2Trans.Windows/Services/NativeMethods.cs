@@ -14,6 +14,7 @@ internal static class NativeMethods
     internal const ushort VkMenu = 0x12;
     internal const ushort VkShift = 0x10;
     internal const ushort VkLWin = 0x5B;
+    internal const ushort VkRWin = 0x5C;
     internal const uint InputKeyboard = 1;
     internal const uint KeyEventFKeyUp = 0x0002;
 
@@ -34,6 +35,14 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern uint GetClipboardSequenceNumber();
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    internal static bool IsKeyDown(ushort virtualKey)
+    {
+        return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
