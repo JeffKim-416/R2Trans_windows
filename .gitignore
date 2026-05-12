@@ -1,26 +1,24 @@
-# macOS
+# OS files
 .DS_Store
 ._*
+Thumbs.db
+Desktop.ini
 
-# Swift Package Manager
+# .NET and local IDE state
+bin/
+obj/
 .build/
-.swiftpm/
-Package.resolved
-
-# Xcode and local IDE state
-DerivedData/
-*.xcworkspace/xcuserdata/
-*.xcodeproj/xcuserdata/
-*.xcuserstate
+.vs/
 .vscode/
 .idea/
 .claude/settings.local.json
 
 # Build and release artifacts
 build/
-*.app
-*.dmg
-*.pkg
+Windows/publish/
+Windows/dist/
+*.msi
+*.exe
 *.zip
 
 # Local secrets and environment overrides

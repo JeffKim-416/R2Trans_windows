@@ -1,46 +1,54 @@
-# Security Policy
+# Security
 
-## API Keys
+R2Trans is a Windows-only desktop app. The app does not include an OpenAI API key; each user enters their own key in Settings.
 
-R2Trans does not include an OpenAI API key. Each user must enter their own API key in the app settings after installing the app.
+## API Key Storage
 
-The API key is stored locally in the user's macOS Keychain through `KeychainStore`. It is not written to source files, build artifacts, app metadata, logs, or UserDefaults by the app.
+The OpenAI API key is encrypted with Windows DPAPI using the current-user scope and stored at:
+
+```text
+%APPDATA%\R2Trans\openai-api-key.dat
+```
+
+General non-secret settings are stored at:
+
+```text
+%APPDATA%\R2Trans\settings.json
+```
+
+Do not commit API keys, publish outputs, installers, logs, or local environment files.
 
 ## Data Sent to OpenAI
 
-R2Trans sends selected text to OpenAI when the user triggers a text translation.
+R2Trans sends the following user-selected data to OpenAI only when the user invokes the related feature:
 
-The Live Interpreter sends microphone audio and/or system audio to OpenAI when the user starts a live interpreter session.
+- Selected text for translation or rewriting.
+- Microphone audio for Live Interpreter when microphone input is enabled.
+- System audio for Live Interpreter when system audio input is enabled.
 
-Do not use R2Trans with text or audio you are not allowed to send to OpenAI.
+## Windows Permissions
 
-## macOS Permissions
+R2Trans uses normal current-user Windows APIs:
 
-R2Trans may request these macOS permissions:
+- Global hotkey registration through Win32 `RegisterHotKey`.
+- Keyboard input simulation through Win32 `SendInput`.
+- Clipboard access through the Windows clipboard.
+- Microphone capture through Windows audio APIs.
+- System audio capture through WASAPI loopback.
+- Login startup through `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 
-- Accessibility: used for global copy and paste.
-- Microphone: used for microphone-based live interpretation.
-- Screen & System Audio Recording: used for system-audio live interpretation.
-- Launch at Login: optional, used only when enabled by the user.
+## Release Checklist
 
-## Repository Hygiene
+Before publishing a build, run a local secret scan and inspect ignored artifacts:
 
-Before publishing changes, check that no local secrets or personal machine paths are included:
-
-```sh
-rg -n "$(id -un)|OPENAI_API_KEY|sk-[A-Za-z0-9_-]+|BEGIN .*PRIVATE KEY|R2TRANS_CODESIGN_IDENTITY" .
+```powershell
+rg -n "OPENAI_API_KEY|sk-[A-Za-z0-9_-]+|BEGIN .*PRIVATE KEY" .
 git status --short --ignored
 ```
 
-Do not commit:
+Expected generated outputs are under:
 
-- API keys or bearer tokens
-- Local absolute paths
-- Code signing identities or certificates
-- Provisioning profiles
-- Generated app bundles, DMGs, packages, or archives
-- Local IDE, assistant, or machine-specific settings
-
-## Reporting Vulnerabilities
-
-If you publish this project publicly, add your preferred security contact here so users can report vulnerabilities privately.
+```text
+Windows\publish\
+Windows\dist\
+```

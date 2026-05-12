@@ -1,0 +1,42 @@
+<Window x:Class="R2Trans.Windows.TranslationConfirmationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="520"
+        Height="360"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText"
+                   FontSize="18"
+                   FontWeight="SemiBold" />
+        <TextBlock x:Name="MessageText"
+                   Grid.Row="1"
+                   Margin="0,8,0,12"
+                   TextWrapping="Wrap" />
+        <TextBox x:Name="PreviewTextBox"
+                 Grid.Row="2"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 IsReadOnly="True" />
+        <StackPanel Grid.Row="3"
+                    Margin="0,14,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button x:Name="CancelButton"
+                    Click="CancelButton_Click" />
+            <Button x:Name="CopyButton"
+                    Click="CopyButton_Click" />
+            <Button x:Name="ReplaceButton"
+                    IsDefault="True"
+                    Click="ReplaceButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
