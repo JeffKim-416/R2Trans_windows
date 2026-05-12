@@ -9,12 +9,12 @@ R2Trans is a Windows-only app that translates selected text with a global hotkey
 Download the latest setup file from [GitHub Releases](https://github.com/JeffKim-416/R2Trans_windows/releases/latest).
 
 ```text
-R2TransSetup-0.1.0-win-x64.exe
+R2TransSetup-0.1.1-win-x64.exe
 ```
 
 Install steps:
 
-1. Run `R2TransSetup-0.1.0-win-x64.exe`.
+1. Run `R2TransSetup-0.1.1-win-x64.exe`.
 2. Follow the installer prompts.
 3. Launch R2Trans after installation.
 4. Enter your own OpenAI API key in Settings.
