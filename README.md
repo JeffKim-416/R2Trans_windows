@@ -9,12 +9,12 @@ R2Trans는 선택한 텍스트를 단축키로 번역하고 원래 위치에 다
 최신 설치파일은 [GitHub Releases](https://github.com/JeffKim-416/R2Trans_windows/releases/latest)에서 받을 수 있습니다.
 
 ```text
-R2TransSetup-0.1.1-win-x64.exe
+R2TransSetup-0.2.2-win-x64.exe
 ```
 
 설치 순서:
 
-1. `R2TransSetup-0.1.1-win-x64.exe`를 실행합니다.
+1. `R2TransSetup-0.2.2-win-x64.exe`를 실행합니다.
 2. 설치 마법사의 안내에 따라 설치합니다.
 3. 설치가 끝나면 R2Trans를 실행합니다.
 4. 설정 창에서 본인의 OpenAI API 키를 입력합니다.
