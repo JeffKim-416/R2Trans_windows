@@ -1,9 +1,10 @@
 using System.Windows;
 using R2Trans.Windows.Services;
+using WpfApplication = System.Windows.Application;
 
 namespace R2Trans.Windows;
 
-public partial class App : Application
+public partial class App : WpfApplication
 {
     private AppController? controller;
 

@@ -1,0 +1,7 @@
+# Keep GitHub-generated source archives focused on the app source.
+# End users should download the installer attached to each GitHub Release.
+.github/ export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.claude/ export-ignore
+Windows/Installer/ export-ignore

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Forms;
 using R2Trans.Windows.Localization;
+using R2Trans.Windows.Models;
 
 namespace R2Trans.Windows.Services;
 
@@ -8,8 +9,10 @@ public sealed class AppController : IDisposable
 {
     private readonly NotifyIcon notifyIcon = new();
     private readonly GlobalHotKeyService hotKeyService = new();
+    private readonly UpdateChecker updateChecker = new();
     private MainWindow? mainWindow;
     private LiveInterpreterWindow? liveInterpreterWindow;
+    private TranslationProgressWindow? progressWindow;
     private bool disposed;
 
     public AppController()
@@ -44,6 +47,8 @@ public sealed class AppController : IDisposable
         {
             mainWindow.Hide();
         }
+
+        _ = CheckForUpdatesOnStartupAsync();
     }
 
     public void ApplySettings()
@@ -77,6 +82,23 @@ public sealed class AppController : IDisposable
         RegisterHotKey();
     }
 
+    public void SuspendHotKey()
+    {
+        hotKeyService.Unregister();
+    }
+
+    public void ResumeHotKey()
+    {
+        try
+        {
+            RegisterHotKey();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message);
+        }
+    }
+
     private void RegisterHotKey()
     {
         if (mainWindow is null)
@@ -88,13 +110,50 @@ public sealed class AppController : IDisposable
         {
             try
             {
-                await ClipboardTranslator.TranslateSelectionAsync(mainWindow, mainWindow.SetStatus);
+                await ClipboardTranslator.TranslateSelectionAsync(mainWindow, UpdateTranslationStatus);
             }
             catch (Exception exception)
             {
+                HideProgressWindow();
                 ShowError(exception.Message);
             }
         });
+    }
+
+    private void UpdateTranslationStatus(string status)
+    {
+        mainWindow?.SetStatus(status);
+
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            HideProgressWindow();
+            return;
+        }
+
+        ShowProgressWindow(status);
+    }
+
+    private void ShowProgressWindow(string message)
+    {
+        if (progressWindow is null)
+        {
+            progressWindow = new TranslationProgressWindow();
+            progressWindow.Closed += (_, _) => progressWindow = null;
+        }
+
+        progressWindow.SetMessage(message);
+        progressWindow.Show();
+    }
+
+    private void HideProgressWindow()
+    {
+        if (progressWindow is null)
+        {
+            return;
+        }
+
+        progressWindow.Close();
+        progressWindow = null;
     }
 
     private void ConfigureTray()
@@ -128,6 +187,42 @@ public sealed class AppController : IDisposable
         liveInterpreterWindow.Activate();
     }
 
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        try
+        {
+            await Task.Delay(1800);
+            var updateInfo = await updateChecker.CheckAsync();
+            if (updateInfo is null || disposed || IsShuttingDown)
+            {
+                return;
+            }
+
+            var result = ShowUpdatePrompt(updateInfo);
+            if (result == MessageBoxResult.Yes)
+            {
+                UpdateChecker.OpenUpdateUrl(updateInfo);
+            }
+        }
+        catch
+        {
+            // Update checks should never interrupt app startup.
+        }
+    }
+
+    private MessageBoxResult ShowUpdatePrompt(UpdateInfo updateInfo)
+    {
+        var isKorean = SettingsStore.Current.AppLanguage == AppLanguage.Korean;
+        var title = isKorean ? "R2Trans 업데이트" : "R2Trans Update";
+        var message = isKorean
+            ? $"새 버전 {updateInfo.LatestVersion}이 있습니다.\n현재 버전: {updateInfo.CurrentVersion}\n\n다운로드 페이지를 열까요?"
+            : $"A new version {updateInfo.LatestVersion} is available.\nCurrent version: {updateInfo.CurrentVersion}\n\nOpen the download page?";
+
+        return mainWindow?.IsVisible == true
+            ? System.Windows.MessageBox.Show(mainWindow, message, title, MessageBoxButton.YesNo, MessageBoxImage.Information)
+            : System.Windows.MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Information);
+    }
+
     private static void ShowError(string message)
     {
         System.Windows.MessageBox.Show(
@@ -153,6 +248,8 @@ public sealed class AppController : IDisposable
 
         disposed = true;
         hotKeyService.Dispose();
+        updateChecker.Dispose();
+        HideProgressWindow();
         notifyIcon.Visible = false;
         notifyIcon.Dispose();
     }

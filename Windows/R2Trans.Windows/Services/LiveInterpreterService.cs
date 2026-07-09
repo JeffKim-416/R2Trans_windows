@@ -38,7 +38,7 @@ public sealed class LiveInterpreterService : IDisposable
         }
 
         ResetTranscriptState();
-        targetLanguageDisplayName = SupportedLanguage.DisplayName(targetLanguageCode);
+        targetLanguageDisplayName = SupportedLanguage.DisplayNameFor(targetLanguageCode);
         var targetLanguage = new RealtimeTranslationLanguage(targetLanguageCode, targetLanguageDisplayName);
         translationSocket = new RealtimeTranslationSocket(targetLanguage);
         translationSocket.EventReceived += (_, evt) => Handle(evt);

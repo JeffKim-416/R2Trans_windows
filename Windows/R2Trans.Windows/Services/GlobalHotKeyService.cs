@@ -13,10 +13,11 @@ public sealed class GlobalHotKeyService : IDisposable
     private const int ProbeHotKeyId = HotKeyId + 1;
     private HwndSource? source;
     private IntPtr handle;
-    private Action? action;
+    private Func<Task>? action;
     private HotKey? registeredHotKey;
+    private bool isDispatching;
 
-    public void Register(Window window, string hotKeyString, Action action)
+    public void Register(Window window, string hotKeyString, Func<Task> action)
     {
         HotKeyValidator.Validate(hotKeyString);
 
@@ -147,10 +148,73 @@ public sealed class GlobalHotKeyService : IDisposable
         if (msg == NativeMethods.WmHotKey && wParam.ToInt32() == HotKeyId)
         {
             handled = true;
-            action?.Invoke();
+            _ = DispatchAfterHotKeyReleaseAsync();
         }
 
         return IntPtr.Zero;
+    }
+
+    private async Task DispatchAfterHotKeyReleaseAsync()
+    {
+        var handler = action;
+        if (isDispatching || handler is null)
+        {
+            return;
+        }
+
+        isDispatching = true;
+        try
+        {
+            await WaitForHotKeyReleaseAsync();
+            await handler();
+        }
+        finally
+        {
+            isDispatching = false;
+        }
+    }
+
+    private async Task WaitForHotKeyReleaseAsync()
+    {
+        if (registeredHotKey is null)
+        {
+            return;
+        }
+
+        var hotKey = registeredHotKey.Value;
+        var keysToWatch = new HashSet<ushort> { (ushort)hotKey.KeyCode };
+
+        if ((hotKey.Modifiers & NativeMethods.ModControl) != 0)
+        {
+            keysToWatch.Add(NativeMethods.VkControl);
+        }
+
+        if ((hotKey.Modifiers & NativeMethods.ModAlt) != 0)
+        {
+            keysToWatch.Add(NativeMethods.VkMenu);
+        }
+
+        if ((hotKey.Modifiers & NativeMethods.ModShift) != 0)
+        {
+            keysToWatch.Add(NativeMethods.VkShift);
+        }
+
+        if ((hotKey.Modifiers & NativeMethods.ModWin) != 0)
+        {
+            keysToWatch.Add(NativeMethods.VkLWin);
+            keysToWatch.Add(NativeMethods.VkRWin);
+        }
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            if (!keysToWatch.Any(NativeMethods.IsKeyDown))
+            {
+                await Task.Delay(80);
+                return;
+            }
+
+            await Task.Delay(25);
+        }
     }
 
     public void Dispose()

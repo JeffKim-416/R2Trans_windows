@@ -67,6 +67,11 @@ public static class HotKeyParser
     public static string NormalizeString(string value)
     {
         var hotKey = Parse(value);
+        return Normalize(hotKey);
+    }
+
+    public static string Normalize(HotKey hotKey)
+    {
         var parts = ModifierTokens(hotKey.Modifiers);
         parts.Add(KeyToken(hotKey.KeyCode));
         return string.Join('+', parts);

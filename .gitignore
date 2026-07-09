@@ -11,15 +11,26 @@ obj/
 .vs/
 .vscode/
 .idea/
-.claude/settings.local.json
+.claude/
+*.suo
+*.user
+*.userosscache
+*.rsuser
+*.DotSettings.user
 
 # Build and release artifacts
 build/
+artifacts/
 Windows/publish/
 Windows/dist/
+Windows/Installer/Output/
+SelectionSmoke/
 *.msi
 *.exe
 *.zip
+*.nupkg
+*.snupkg
+*.binlog
 
 # Local secrets and environment overrides
 .env
@@ -35,3 +46,7 @@ Windows/dist/
 *.log
 *.tmp
 *.swp
+TestResults/
+coverage/
+*.coverage
+*.coveragexml

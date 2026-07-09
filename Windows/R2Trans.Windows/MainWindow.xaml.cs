@@ -1,9 +1,12 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Input;
 using R2Trans.Windows.Localization;
 using R2Trans.Windows.Models;
 using R2Trans.Windows.Services;
+using Clipboard = System.Windows.Clipboard;
+using MessageBox = System.Windows.MessageBox;
 
 namespace R2Trans.Windows;
 
@@ -95,7 +98,7 @@ public partial class MainWindow : Window
         AutoPairCombo.SelectedValue = settings.AutoDetectPair;
         ConfirmBeforeReplaceCheckBox.IsChecked = settings.ConfirmBeforeReplace;
         StyleCombo.SelectedValue = settings.TranslationStyle;
-        HotKeyTextBox.Text = settings.HotKeyString;
+        SetHotKeyText(settings.HotKeyString);
         ModelCombo.SelectedItem = SupportedModel.All.First(model => model.Id == settings.Model);
         LaunchAtLoginCheckBox.IsChecked = StartupManager.IsEnabled;
         ShowTrayIconCheckBox.IsChecked = settings.ShowTrayIcon;
@@ -159,7 +162,7 @@ public partial class MainWindow : Window
             var selectedTarget = (SupportedLanguage)TargetLanguageCombo.SelectedItem;
             var selectedModel = (SupportedModel)ModelCombo.SelectedItem;
 
-            var hotKey = HotKeyParser.NormalizeString(HotKeyTextBox.Text);
+            var hotKey = HotKeyParser.NormalizeString((HotKeyTextBox.Tag as string) ?? HotKeyTextBox.Text);
             HotKeyValidator.Validate(hotKey);
 
             settingsMutated = true;
@@ -215,6 +218,48 @@ public partial class MainWindow : Window
         {
             ApiKeyBox.Password = Clipboard.GetText();
         }
+    }
+
+    private void HotKeyTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        e.Handled = true;
+
+        var key = e.Key switch
+        {
+            Key.System => e.SystemKey,
+            Key.ImeProcessed => e.ImeProcessedKey,
+            _ => e.Key
+        };
+
+        if (IsModifierKey(key))
+        {
+            HotKeyTextBox.Text = HotKeyDisplayFromModifiers(Keyboard.Modifiers);
+            return;
+        }
+
+        var modifiers = Keyboard.Modifiers;
+        if (!TryNormalizeHotKey(key, modifiers, out var normalized))
+        {
+            return;
+        }
+
+        SetHotKeyText(normalized);
+    }
+
+    private void HotKeyTextBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        controller.SuspendHotKey();
+        HotKeyTextBox.SelectAll();
+    }
+
+    private void HotKeyTextBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        controller.ResumeHotKey();
+    }
+
+    private void HotKeyTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private void CreateApiKeyButton_Click(object sender, RoutedEventArgs e)
@@ -293,4 +338,96 @@ public partial class MainWindow : Window
     }
 
     private sealed record ComboOption<T>(T Value, string Label);
+
+    private static bool TryNormalizeHotKey(Key key, ModifierKeys modifiers, out string normalized)
+    {
+        normalized = string.Empty;
+        var nativeModifiers = NativeModifiers(modifiers);
+        if (nativeModifiers == 0)
+        {
+            return false;
+        }
+
+        var virtualKey = KeyInterop.VirtualKeyFromKey(key);
+        if (virtualKey == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            normalized = HotKeyParser.Normalize(new HotKey((uint)virtualKey, nativeModifiers));
+            return true;
+        }
+        catch (R2TransException)
+        {
+            return false;
+        }
+    }
+
+    private static uint NativeModifiers(ModifierKeys modifiers)
+    {
+        uint nativeModifiers = 0;
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            nativeModifiers |= NativeMethods.ModControl;
+        }
+
+        if ((modifiers & ModifierKeys.Alt) != 0)
+        {
+            nativeModifiers |= NativeMethods.ModAlt;
+        }
+
+        if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            nativeModifiers |= NativeMethods.ModShift;
+        }
+
+        if ((modifiers & ModifierKeys.Windows) != 0)
+        {
+            nativeModifiers |= NativeMethods.ModWin;
+        }
+
+        return nativeModifiers;
+    }
+
+    private static bool IsModifierKey(Key key)
+    {
+        return key is Key.LeftCtrl or Key.RightCtrl
+            or Key.LeftAlt or Key.RightAlt
+            or Key.LeftShift or Key.RightShift
+            or Key.LWin or Key.RWin;
+    }
+
+    private static string HotKeyDisplayFromModifiers(ModifierKeys modifiers)
+    {
+        var parts = new List<string>();
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            parts.Add("Ctrl");
+        }
+
+        if ((modifiers & ModifierKeys.Alt) != 0)
+        {
+            parts.Add("Alt");
+        }
+
+        if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            parts.Add("Shift");
+        }
+
+        if ((modifiers & ModifierKeys.Windows) != 0)
+        {
+            parts.Add("Win");
+        }
+
+        return parts.Count == 0 ? string.Empty : $"{string.Join("+", parts)}+...";
+    }
+
+    private void SetHotKeyText(string normalized)
+    {
+        HotKeyTextBox.Tag = HotKeyParser.NormalizeString(normalized);
+        HotKeyTextBox.Text = HotKeyParser.DisplayString(normalized);
+    }
 }

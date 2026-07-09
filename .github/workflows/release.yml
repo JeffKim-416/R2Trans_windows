@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = "win-x64"
+          $project = "Windows/R2Trans.Windows/R2Trans.Windows.csproj"
+          $publishDir = Join-Path $PWD "Windows/publish/$runtime"
+          $distDir = Join-Path $PWD "Windows/dist"
+
+          [xml]$projectXml = Get-Content $project
+          $appVersion = ($projectXml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          if ([string]::IsNullOrWhiteSpace($appVersion)) {
+            $appVersion = "0.1.0"
+          }
+
+          New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+
+          dotnet publish $project `
+            --configuration Release `
+            --runtime $runtime `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishReadyToRun=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o $publishDir
+
+          $env:R2TRANS_PUBLISH_DIR = $publishDir
+          $env:R2TRANS_APP_VERSION = $appVersion
+          $env:R2TRANS_RUNTIME = $runtime
+
+          $isccOnPath = Get-Command iscc.exe -ErrorAction SilentlyContinue
+          $isccCompiler = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+            $isccOnPath.Source
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+          if (-not $isccCompiler) {
+            throw "Inno Setup 6 was not found."
+          }
+
+          & $isccCompiler "Windows/Installer/R2Trans.iss"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: R2TransSetup-win-x64
+          path: Windows/dist/R2TransSetup-*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Windows/dist/R2TransSetup-*.exe
+          generate_release_notes: true
