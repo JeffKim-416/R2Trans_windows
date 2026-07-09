@@ -58,7 +58,7 @@ public partial class LiveInterpreterWindow : Window
     {
         if (isRunning)
         {
-            service.Stop();
+            await service.StopAsync();
             return;
         }
 
@@ -93,7 +93,7 @@ public partial class LiveInterpreterWindow : Window
 
     private void Service_Update(object? sender, LiveInterpreterUpdate update)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(new Action(() =>
         {
             switch (update)
             {
@@ -135,7 +135,7 @@ public partial class LiveInterpreterWindow : Window
                     DebugLabel.Text = error.Message;
                     break;
             }
-        });
+        }));
     }
 
     private void SetControlsEnabled(bool enabled)

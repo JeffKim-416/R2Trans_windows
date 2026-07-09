@@ -10,7 +10,12 @@ public sealed class RealtimeTranslationSocket : IDisposable
     private readonly RealtimeTranslationLanguage targetLanguage;
     private readonly ClientWebSocket socket = new();
     private readonly SemaphoreSlim sendLock = new(1, 1);
+    private readonly TaskCompletionSource sessionClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly object closeLock = new();
     private CancellationTokenSource? receiveCancellation;
+    private Task? receiveTask;
+    private Task? closeTask;
+    private bool closing;
     private bool disposed;
 
     public RealtimeTranslationSocket(RealtimeTranslationLanguage targetLanguage)
@@ -30,11 +35,16 @@ public sealed class RealtimeTranslationSocket : IDisposable
         await SendSessionUpdateAsync();
 
         receiveCancellation = new CancellationTokenSource();
-        _ = Task.Run(() => ReceiveLoopAsync(receiveCancellation.Token));
+        receiveTask = Task.Run(() => ReceiveLoopAsync(receiveCancellation.Token));
     }
 
     public Task SendAudioAsync(string base64Audio)
     {
+        if (closing)
+        {
+            return Task.CompletedTask;
+        }
+
         return SendJsonAsync(new Dictionary<string, object?>
         {
             ["type"] = "session.input_audio_buffer.append",
@@ -51,17 +61,6 @@ public sealed class RealtimeTranslationSocket : IDisposable
             {
                 ["audio"] = new Dictionary<string, object?>
                 {
-                    ["input"] = new Dictionary<string, object?>
-                    {
-                        ["transcription"] = new Dictionary<string, object?>
-                        {
-                            ["model"] = "gpt-realtime-whisper"
-                        },
-                        ["noise_reduction"] = new Dictionary<string, object?>
-                        {
-                            ["type"] = "near_field"
-                        }
-                    },
                     ["output"] = new Dictionary<string, object?>
                     {
                         ["language"] = targetLanguage.ApiLanguageCode
@@ -69,6 +68,56 @@ public sealed class RealtimeTranslationSocket : IDisposable
                 }
             }
         });
+    }
+
+    public Task CloseAsync()
+    {
+        lock (closeLock)
+        {
+            closeTask ??= CloseCoreAsync();
+            return closeTask;
+        }
+    }
+
+    private async Task CloseCoreAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        closing = true;
+
+        if (socket.State == WebSocketState.Open)
+        {
+            await SendJsonAsync(new Dictionary<string, object?>
+            {
+                ["type"] = "session.close"
+            }).ConfigureAwait(false);
+
+            await Task.WhenAny(sessionClosed.Task, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+        }
+
+        if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            try
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "R2Trans closing", CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (WebSocketException exception)
+            {
+                Error?.Invoke(this, exception.Message);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        receiveCancellation?.Cancel();
+        if (receiveTask is not null)
+        {
+            await Task.WhenAny(receiveTask, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false);
+        }
     }
 
     private async Task SendJsonAsync(Dictionary<string, object?> payload)
@@ -81,10 +130,10 @@ public sealed class RealtimeTranslationSocket : IDisposable
         var json = JsonSerializer.Serialize(payload);
         var bytes = Encoding.UTF8.GetBytes(json);
 
-        await sendLock.WaitAsync();
+        await sendLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            await socket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+            await socket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -111,6 +160,7 @@ public sealed class RealtimeTranslationSocket : IDisposable
                     result = await socket.ReceiveAsync(buffer, cancellationToken);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        sessionClosed.TrySetResult();
                         return;
                     }
 
@@ -120,6 +170,10 @@ public sealed class RealtimeTranslationSocket : IDisposable
                 HandleMessage(Encoding.UTF8.GetString(memory.ToArray()));
             }
             catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception) when (closing)
             {
                 return;
             }
@@ -152,6 +206,10 @@ public sealed class RealtimeTranslationSocket : IDisposable
                     break;
                 case "session.created":
                 case "session.updated":
+                    EventReceived?.Invoke(this, new RealtimeTranslationEvent.Debug(type));
+                    break;
+                case "session.closed":
+                    sessionClosed.TrySetResult();
                     EventReceived?.Invoke(this, new RealtimeTranslationEvent.Debug(type));
                     break;
                 case "error":
@@ -203,13 +261,15 @@ public sealed class RealtimeTranslationSocket : IDisposable
             return;
         }
 
-        disposed = true;
-        receiveCancellation?.Cancel();
-        if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        try
         {
-            _ = socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "R2Trans closing", CancellationToken.None);
+            CloseAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
         }
 
+        disposed = true;
         socket.Dispose();
         sendLock.Dispose();
         receiveCancellation?.Dispose();

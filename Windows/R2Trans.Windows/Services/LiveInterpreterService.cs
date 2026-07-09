@@ -53,7 +53,7 @@ public sealed class LiveInterpreterService : IDisposable
         }
         catch
         {
-            Stop();
+            await StopAsync();
             throw;
         }
 
@@ -64,9 +64,21 @@ public sealed class LiveInterpreterService : IDisposable
 
     public void Stop()
     {
+        StopAsync().GetAwaiter().GetResult();
+    }
+
+    public async Task StopAsync()
+    {
         audioInputStreamer.Stop();
-        translationSocket?.Dispose();
+        var socket = translationSocket;
         translationSocket = null;
+
+        if (socket is not null)
+        {
+            await socket.CloseAsync().ConfigureAwait(false);
+            socket.Dispose();
+        }
+
         SendUpdate(new LiveInterpreterUpdate.AudioLevel(LiveInterpreterAudioSource.Microphone, 0));
         SendUpdate(new LiveInterpreterUpdate.AudioLevel(LiveInterpreterAudioSource.SystemAudio, 0));
 
@@ -218,7 +230,7 @@ public sealed class LiveInterpreterService : IDisposable
 
     public void Dispose()
     {
-        Stop();
+        StopAsync().GetAwaiter().GetResult();
         audioInputStreamer.Dispose();
     }
 }

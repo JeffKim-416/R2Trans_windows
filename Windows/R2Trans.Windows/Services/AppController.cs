@@ -48,6 +48,23 @@ public sealed class AppController : IDisposable
 
     public void ApplySettings()
     {
+        try
+        {
+            ApplySettingsCore();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message);
+        }
+    }
+
+    public void ApplySettingsForSave()
+    {
+        RegisterHotKey();
+    }
+
+    private void ApplySettingsCore()
+    {
         if (mainWindow is null)
         {
             return;
@@ -57,14 +74,7 @@ public sealed class AppController : IDisposable
         mainWindow.ReloadLocalizedText();
         mainWindow.ReloadValues();
         ConfigureTray();
-        try
-        {
-            RegisterHotKey();
-        }
-        catch (Exception exception)
-        {
-            ShowError(exception.Message);
-        }
+        RegisterHotKey();
     }
 
     private void RegisterHotKey()

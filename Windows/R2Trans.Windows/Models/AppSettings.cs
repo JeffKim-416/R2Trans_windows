@@ -17,6 +17,39 @@ public sealed class AppSettings
     public string LanguagePairDisplayName => AutoDetectEnabled
         ? $"Auto {AutoDetectPair.DisplayName()}"
         : $"{SupportedLanguage.DisplayName(SourceLanguageCode)}->{SupportedLanguage.DisplayName(TargetLanguageCode)}";
+
+    public AppSettings Clone()
+    {
+        return new AppSettings
+        {
+            SourceLanguageCode = SourceLanguageCode,
+            TargetLanguageCode = TargetLanguageCode,
+            AppLanguage = AppLanguage,
+            HotKeyString = HotKeyString,
+            Model = Model,
+            AutoDetectEnabled = AutoDetectEnabled,
+            AutoDetectPair = AutoDetectPair,
+            ConfirmBeforeReplace = ConfirmBeforeReplace,
+            TranslationStyle = TranslationStyle,
+            ShowTrayIcon = ShowTrayIcon,
+            WorkMode = WorkMode
+        };
+    }
+
+    public void CopyFrom(AppSettings settings)
+    {
+        SourceLanguageCode = settings.SourceLanguageCode;
+        TargetLanguageCode = settings.TargetLanguageCode;
+        AppLanguage = settings.AppLanguage;
+        HotKeyString = settings.HotKeyString;
+        Model = settings.Model;
+        AutoDetectEnabled = settings.AutoDetectEnabled;
+        AutoDetectPair = settings.AutoDetectPair;
+        ConfirmBeforeReplace = settings.ConfirmBeforeReplace;
+        TranslationStyle = settings.TranslationStyle;
+        ShowTrayIcon = settings.ShowTrayIcon;
+        WorkMode = settings.WorkMode;
+    }
 }
 
 public sealed record SupportedLanguage(string Code, string Name)

@@ -105,32 +105,56 @@ public partial class MainWindow : Window
 
     private void RefreshLocalizedComboItems()
     {
-        WorkModeCombo.ItemsSource = null;
-        WorkModeCombo.ItemsSource = Enum.GetValues<WorkMode>().Select(mode => new ComboOption<WorkMode>(mode, mode.DisplayName())).ToList();
-        WorkModeCombo.DisplayMemberPath = nameof(ComboOption<WorkMode>.Label);
-        WorkModeCombo.SelectedValuePath = nameof(ComboOption<WorkMode>.Value);
+        var settings = controller.SettingsStore.Current;
+        var selectedWorkMode = WorkModeCombo.SelectedValue is WorkMode workMode ? workMode : settings.WorkMode;
+        var selectedAutoPair = AutoPairCombo.SelectedValue is AutoDetectPair autoPair ? autoPair : settings.AutoDetectPair;
+        var selectedStyle = StyleCombo.SelectedValue is TranslationStyle style ? style : settings.TranslationStyle;
+        var selectedAppLanguage = AppLanguageCombo.SelectedValue is AppLanguage appLanguage ? appLanguage : settings.AppLanguage;
+        var wasLoading = isLoading;
 
-        AutoPairCombo.ItemsSource = null;
-        AutoPairCombo.ItemsSource = Enum.GetValues<AutoDetectPair>().Select(pair => new ComboOption<AutoDetectPair>(pair, pair.DisplayName())).ToList();
-        AutoPairCombo.DisplayMemberPath = nameof(ComboOption<AutoDetectPair>.Label);
-        AutoPairCombo.SelectedValuePath = nameof(ComboOption<AutoDetectPair>.Value);
+        isLoading = true;
+        try
+        {
+            WorkModeCombo.ItemsSource = null;
+            WorkModeCombo.ItemsSource = Enum.GetValues<WorkMode>().Select(mode => new ComboOption<WorkMode>(mode, mode.DisplayName())).ToList();
+            WorkModeCombo.DisplayMemberPath = nameof(ComboOption<WorkMode>.Label);
+            WorkModeCombo.SelectedValuePath = nameof(ComboOption<WorkMode>.Value);
+            WorkModeCombo.SelectedValue = selectedWorkMode;
 
-        StyleCombo.ItemsSource = null;
-        StyleCombo.ItemsSource = Enum.GetValues<TranslationStyle>().Select(style => new ComboOption<TranslationStyle>(style, style.DisplayName())).ToList();
-        StyleCombo.DisplayMemberPath = nameof(ComboOption<TranslationStyle>.Label);
-        StyleCombo.SelectedValuePath = nameof(ComboOption<TranslationStyle>.Value);
+            AutoPairCombo.ItemsSource = null;
+            AutoPairCombo.ItemsSource = Enum.GetValues<AutoDetectPair>().Select(pair => new ComboOption<AutoDetectPair>(pair, pair.DisplayName())).ToList();
+            AutoPairCombo.DisplayMemberPath = nameof(ComboOption<AutoDetectPair>.Label);
+            AutoPairCombo.SelectedValuePath = nameof(ComboOption<AutoDetectPair>.Value);
+            AutoPairCombo.SelectedValue = selectedAutoPair;
 
-        AppLanguageCombo.ItemsSource = null;
-        AppLanguageCombo.ItemsSource = Enum.GetValues<AppLanguage>().Select(language => new ComboOption<AppLanguage>(language, language.DisplayName())).ToList();
-        AppLanguageCombo.DisplayMemberPath = nameof(ComboOption<AppLanguage>.Label);
-        AppLanguageCombo.SelectedValuePath = nameof(ComboOption<AppLanguage>.Value);
+            StyleCombo.ItemsSource = null;
+            StyleCombo.ItemsSource = Enum.GetValues<TranslationStyle>().Select(style => new ComboOption<TranslationStyle>(style, style.DisplayName())).ToList();
+            StyleCombo.DisplayMemberPath = nameof(ComboOption<TranslationStyle>.Label);
+            StyleCombo.SelectedValuePath = nameof(ComboOption<TranslationStyle>.Value);
+            StyleCombo.SelectedValue = selectedStyle;
+
+            AppLanguageCombo.ItemsSource = null;
+            AppLanguageCombo.ItemsSource = Enum.GetValues<AppLanguage>().Select(language => new ComboOption<AppLanguage>(language, language.DisplayName())).ToList();
+            AppLanguageCombo.DisplayMemberPath = nameof(ComboOption<AppLanguage>.Label);
+            AppLanguageCombo.SelectedValuePath = nameof(ComboOption<AppLanguage>.Value);
+            AppLanguageCombo.SelectedValue = selectedAppLanguage;
+        }
+        finally
+        {
+            isLoading = wasLoading;
+        }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
+        AppSettings? previousSettings = null;
+        var settingsMutated = false;
+        var registrationAttempted = false;
+
         try
         {
             var settings = controller.SettingsStore.Current;
+            previousSettings = settings.Clone();
             var selectedSource = (SupportedLanguage)SourceLanguageCombo.SelectedItem;
             var selectedTarget = (SupportedLanguage)TargetLanguageCombo.SelectedItem;
             var selectedModel = (SupportedModel)ModelCombo.SelectedItem;
@@ -138,6 +162,7 @@ public partial class MainWindow : Window
             var hotKey = HotKeyParser.NormalizeString(HotKeyTextBox.Text);
             HotKeyValidator.Validate(hotKey);
 
+            settingsMutated = true;
             settings.AppLanguage = (AppLanguage)AppLanguageCombo.SelectedValue;
             settings.WorkMode = (WorkMode)WorkModeCombo.SelectedValue;
             settings.SourceLanguageCode = selectedSource.Code;
@@ -150,6 +175,8 @@ public partial class MainWindow : Window
             settings.Model = selectedModel.Id;
             settings.ShowTrayIcon = ShowTrayIconCheckBox.IsChecked == true;
 
+            registrationAttempted = true;
+            controller.ApplySettingsForSave();
             controller.CredentialStore.SaveApiKey(ApiKeyBox.Password);
             StartupManager.SetEnabled(LaunchAtLoginCheckBox.IsChecked == true);
             controller.SettingsStore.Save();
@@ -158,6 +185,21 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
+            if (previousSettings is not null && settingsMutated)
+            {
+                controller.SettingsStore.Current.CopyFrom(previousSettings);
+                if (registrationAttempted)
+                {
+                    try
+                    {
+                        controller.ApplySettingsForSave();
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
             MessageBox.Show(this, exception.Message, AppText.Text(TextKey.SettingsError), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -209,7 +251,7 @@ public partial class MainWindow : Window
         controller.SettingsStore.Current.AppLanguage = language;
         controller.SettingsStore.Save();
         ReloadLocalizedText();
-        ReloadValues();
+        RefreshModeAvailability();
     }
 
     private void RefreshModeAvailability()
